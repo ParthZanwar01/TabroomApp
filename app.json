@@ -41,6 +41,8 @@
     "extra": {
       "tabroomApiBaseUrl": "https://api.tabroom.com/v1/",
       "tabroomApiBasic": ""
+      ,"backendBaseUrl": "http://localhost:8000/"
+      ,"nodePupBaseUrl": "http://localhost:3000/"
     }
   }
 }

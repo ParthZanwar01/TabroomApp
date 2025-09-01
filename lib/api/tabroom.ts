@@ -23,13 +23,40 @@ function getBaseUrl(): string | undefined {
   return envUrl || extraUrl;
 }
 
-function getApiBasicHeader(): Record<string, string> | undefined {
-  // Prefer pre-encoded BASIC string: base64("key:secret")
+function getBackendBaseUrl(): string | undefined {
+  const envUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+  const extraUrl = (Constants.expoConfig?.extra as { backendBaseUrl?: string } | undefined)?.backendBaseUrl;
+  return envUrl || extraUrl;
+}
+
+function getNodePupBaseUrl(): string | undefined {
+  const envUrl = process.env.EXPO_PUBLIC_NODE_PUP_BASE_URL;
+  const extraUrl = (Constants.expoConfig?.extra as { nodePupBaseUrl?: string } | undefined)?.nodePupBaseUrl;
+  return envUrl || extraUrl;
+}
+
+async function getApiBasicHeader(): Promise<Record<string, string> | undefined> {
+  // 1) Secure, runtime-provided key (preferred)
+  const stored = await SecureStore.getItemAsync('tabroom_api_basic');
+  if (stored) return { Authorization: `Basic ${stored}` };
+
+  // 2) Env/app.json provided key
   const preEncoded = process.env.EXPO_PUBLIC_TABROOM_API_BASIC || (Constants.expoConfig?.extra as { tabroomApiBasic?: string } | undefined)?.tabroomApiBasic;
   if (preEncoded && typeof preEncoded === 'string') {
     return { Authorization: `Basic ${preEncoded}` };
   }
+
   return undefined;
+}
+
+export function isApiConfigured(): boolean {
+  return Boolean(process.env.EXPO_PUBLIC_TABROOM_API_BASIC || (Constants.expoConfig?.extra as { tabroomApiBasic?: string } | undefined)?.tabroomApiBasic);
+}
+
+export async function hasApiKeyConfigured(): Promise<boolean> {
+  const stored = await SecureStore.getItemAsync('tabroom_api_basic');
+  if (stored) return true;
+  return isApiConfigured();
 }
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -39,7 +66,12 @@ async function apiGet<T>(path: string): Promise<T> {
   }
 
   const url = new URL(path.replace(/^\//, ''), baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-  const headers = getApiBasicHeader();
+  const headers = await getApiBasicHeader();
+  // Non-public endpoints require an API key
+  const isPublic = path.startsWith('public/') || path === 'status';
+  if (!headers && !isPublic) {
+    throw new Error('API key required: set EXPO_PUBLIC_TABROOM_API_BASIC (base64 of key:secret) or expo.extra.tabroomApiBasic.');
+  }
   const response = await fetch(url.toString(), { headers });
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -89,12 +121,14 @@ export async function getSystemStatus(): Promise<Record<string, any>> {
 export async function login(username: string, password: string): Promise<{ person_id: number; name: string }> {
   const baseUrl = getBaseUrl();
   if (!baseUrl) throw new Error('Tabroom API base URL is not configured.');
+  const basic = await getApiBasicHeader();
+  if (!basic) throw new Error('API key required to call /login. Set EXPO_PUBLIC_TABROOM_API_BASIC or expo.extra.tabroomApiBasic.');
   const url = new URL('login', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
   const response = await fetch(url.toString(), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...getApiBasicHeader(),
+      ...basic,
     },
     body: JSON.stringify({ username, password }),
   });
@@ -123,6 +157,134 @@ export async function getStoredSession(): Promise<{ person_id: number; name: str
 
 export async function fetchMyProfile(): Promise<any> {
   return apiGet<any>('user/profile');
+}
+
+export async function saveApiKeyBase64(basicBase64: string): Promise<void> {
+  await SecureStore.setItemAsync('tabroom_api_basic', basicBase64.trim());
+}
+
+export async function saveApiKeyAndSecret(key: string, secret: string): Promise<void> {
+  const token = typeof Buffer !== 'undefined' ? Buffer.from(`${key}:${secret}`).toString('base64') : btoa(`${key}:${secret}`);
+  await saveApiKeyBase64(token);
+}
+
+export async function clearApiKey(): Promise<void> {
+  await SecureStore.deleteItemAsync('tabroom_api_basic');
+}
+
+// Backend cookie-login bridge
+export async function backendCookieLogin(email: string, password: string): Promise<{ token: string }> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const url = new URL('cookie-login', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Cookie login failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function backendFetchBallots(token: string): Promise<string> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const url = new URL('ballots', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Fetch ballots failed ${res.status}: ${text}`);
+  }
+  const data = await res.json();
+  return data.html as string;
+}
+
+// Backend session-based login and ballots
+export async function backendSessionLogin(email: string, password: string): Promise<{ sessionId: string }> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const url = new URL('session-login', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Session login failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function backendSessionLogout(sessionId: string): Promise<void> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const url = new URL('session-logout', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Session logout failed ${res.status}: ${text}`);
+  }
+}
+
+export async function backendFetchBallotsBySession(sessionId: string): Promise<string> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const url = new URL('ballots', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Fetch ballots failed ${res.status}: ${text}`);
+  }
+  const data = await res.json();
+  return data.html as string;
+}
+
+export async function backendBrowserLogin(email: string, password: string, headless: boolean = true): Promise<{ token: string; cookie_name?: string }> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const url = new URL('browser-login', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, headless }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Browser login failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function nodePuppeteerLogin(username: string, password: string): Promise<{ success: boolean; cookie?: string; cookie_name?: string; error?: string }> {
+  const baseUrl = getNodePupBaseUrl();
+  if (!baseUrl) throw new Error('Node puppeteer base URL not configured');
+  const url = new URL('api/pup-login', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Puppeteer login failed ${res.status}: ${text}`);
+  }
+  return res.json();
 }
 
 
