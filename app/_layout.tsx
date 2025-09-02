@@ -1,20 +1,18 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/useColorScheme';
+import React from 'react';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
+        <Stack.Screen name="tournament/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="ballots/[token]" options={{ headerShown: false }} />
+        <Stack.Screen name="ballots/session/[sessionId]" options={{ headerShown: false }} />
+        <Stack.Screen name="login/terminal" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
       </Stack>
-      <StatusBar style="auto" />
     </ThemeProvider>
   );
 }
