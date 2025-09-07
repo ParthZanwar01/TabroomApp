@@ -1,0 +1,7 @@
+Starting project at /Users/parthzanwar/Desktop/MyReactNativeApp
+› Port 8082 is running this app in another window
+  /Users/parthzanwar/Desktop/MyReactNativeApp (pid 63187)
+Input is required, but 'npx expo' is in non-interactive mode.
+Required input:
+> Use port 8083 instead?
+› Skipping dev server

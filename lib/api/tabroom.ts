@@ -29,6 +29,12 @@ function getBackendBaseUrl(): string | undefined {
   return envUrl || extraUrl;
 }
 
+function getNodePuppeteerBaseUrl(): string | undefined {
+  const envUrl = process.env.EXPO_PUBLIC_NODE_PUP_BASE_URL;
+  const extraUrl = (Constants.expoConfig?.extra as { nodePupBaseUrl?: string } | undefined)?.nodePupBaseUrl;
+  return envUrl || extraUrl;
+}
+
 function getNodePupBaseUrl(): string | undefined {
   const envUrl = process.env.EXPO_PUBLIC_NODE_PUP_BASE_URL;
   const extraUrl = (Constants.expoConfig?.extra as { nodePupBaseUrl?: string } | undefined)?.nodePupBaseUrl;
@@ -174,36 +180,61 @@ export async function clearApiKey(): Promise<void> {
 
 // Backend cookie-login bridge
 export async function backendCookieLogin(email: string, password: string): Promise<{ token: string }> {
-  const baseUrl = getBackendBaseUrl();
-  if (!baseUrl) throw new Error('Backend base URL not configured');
-  const url = new URL('cookie-login', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Cookie login failed ${res.status}: ${text}`);
+  const nodeUrl = getNodePuppeteerBaseUrl();
+  if (nodeUrl) {
+    const url = new URL('api/pup-login', nodeUrl.endsWith('/') ? nodeUrl : nodeUrl + '/');
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: email, password, headless: true }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && data.cookie && data.cookie_name) {
+        return { token: `${data.cookie_name}:${data.cookie}` };
+      }
+    }
   }
-  return res.json();
+  throw new Error('Cookie login failed. Node Puppeteer backend unreachable or credentials invalid.');
 }
 
 export async function backendFetchBallots(token: string): Promise<string> {
-  const baseUrl = getBackendBaseUrl();
-  if (!baseUrl) throw new Error('Backend base URL not configured');
-  const url = new URL('ballots', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Fetch ballots failed ${res.status}: ${text}`);
+  const nodeUrl = getNodePuppeteerBaseUrl();
+  if (nodeUrl) {
+    const [cookie_name, cookie] = token.split(':');
+    const url = new URL('api/ballots', nodeUrl.endsWith('/') ? nodeUrl : nodeUrl + '/');
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookie, cookie_name }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && data?.html) return data.html as string;
+    }
   }
-  const data = await res.json();
-  return data.html as string;
+  throw new Error('Fetch ballots failed. Node backend unreachable or token invalid.');
+}
+
+export async function backendDiagnostics(): Promise<{ python?: boolean; node?: boolean }> {
+  const out: { python?: boolean; node?: boolean } = {};
+  const python = getBackendBaseUrl();
+  const node = getNodePuppeteerBaseUrl();
+  try {
+    if (python) {
+      const url = new URL('health', python.endsWith('/') ? python : python + '/');
+      const r = await fetch(url.toString());
+      out.python = r.ok;
+    }
+  } catch {}
+  try {
+    if (node) {
+      const url = new URL('api/health', node.endsWith('/') ? node : node + '/');
+      const r = await fetch(url.toString());
+      out.node = r.ok;
+    }
+  } catch {}
+  return out;
 }
 
 // Backend session-based login and ballots
