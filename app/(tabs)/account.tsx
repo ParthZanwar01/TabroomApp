@@ -28,38 +28,56 @@ export default function AccountScreen() {
     setError(undefined);
     setStages([]);
     try {
-      const nodeBase = (Constants.expoConfig?.extra as { nodePupBaseUrl?: string } | undefined)?.nodePupBaseUrl || process.env.EXPO_PUBLIC_NODE_PUP_BASE_URL;
-      if (!nodeBase) {
-        addStage('Backend base URL not configured');
-        setError('Backend URL not configured');
+      const configured = (Constants.expoConfig?.extra as { nodePupBaseUrl?: string } | undefined)?.nodePupBaseUrl || process.env.EXPO_PUBLIC_NODE_PUP_BASE_URL;
+      const candidates = [
+        configured,
+        'http://127.0.0.1:3000/',
+        'http://localhost:3000/',
+      ].filter(Boolean) as string[];
+
+      let sessionId: string | undefined;
+      for (const base of candidates) {
+        const baseUrl = base.endsWith('/') ? base : base + '/';
+        addStage(`POST ${baseUrl}login`);
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 12000);
+          const res = await fetch(new URL('login', baseUrl).toString(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username.trim(), password }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          addStage(`Status ${res.status}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.sessionId) {
+              sessionId = data.sessionId;
+              break;
+            }
+          } else {
+            const text = await res.text().catch(() => '');
+            addStage(`Response: ${text || res.status}`);
+          }
+        } catch (e) {
+          addStage(`Network error: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
+      if (!sessionId) {
+        setError('Login failed: backend unreachable or credentials invalid');
         setLoading(false);
         return;
       }
 
-      // Use refactored backend /login which returns { sessionId }
-      addStage(`POST ${nodeBase}login`);
-      const loginUrl = new URL('login', nodeBase.endsWith('/') ? nodeBase : nodeBase + '/');
-      const res = await fetch(loginUrl.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-      addStage(`Login status: ${res.status}`);
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        setError(`Login failed: ${text || res.status}`);
-        setLoading(false);
-        return;
-      }
-      const data = await res.json();
-      if (!data?.sessionId) {
-        setError('Login failed: no sessionId');
-        setLoading(false);
-        return;
-      }
       addStage('Received sessionId');
-      // For now, just show success; you can navigate/use sessionId in subsequent screens
-      setCookieToken(data.sessionId);
+      setCookieToken(sessionId);
+      try {
+        // Persist for later requests
+        await import('@/lib/api/tabroom').then(m => m.storeBackendSessionId(sessionId!));
+        addStage('Stored sessionId');
+      } catch {}
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Website login failed');
     } finally {

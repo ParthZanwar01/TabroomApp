@@ -4,7 +4,7 @@ import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } f
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { fetchTournamentById, type TournamentDetail } from '@/lib/api/tabroom';
+import { fetchTournamentByIdSmart as fetchTournamentById, type TournamentDetail } from '@/lib/api/tabroom';
 
 export default function TournamentDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

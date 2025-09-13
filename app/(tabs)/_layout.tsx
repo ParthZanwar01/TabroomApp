@@ -34,6 +34,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="my"
+        options={{
+          title: 'My',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="about"
         options={{
           title: 'About',
@@ -52,6 +59,13 @@ export default function TabLayout() {
         options={{
           title: 'Account',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ballots"
+        options={{
+          title: 'Ballots',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
         }}
       />
     </Tabs>

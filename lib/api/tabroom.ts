@@ -65,6 +65,20 @@ export async function hasApiKeyConfigured(): Promise<boolean> {
   return isApiConfigured();
 }
 
+// Backend session helpers
+export async function storeBackendSessionId(sessionId: string): Promise<void> {
+  await SecureStore.setItemAsync('backend_session_id', sessionId);
+}
+
+export async function getBackendSessionId(): Promise<string | undefined> {
+  const val = await SecureStore.getItemAsync('backend_session_id');
+  return val || undefined;
+}
+
+export async function clearBackendSessionId(): Promise<void> {
+  await SecureStore.deleteItemAsync('backend_session_id');
+}
+
 async function apiGet<T>(path: string): Promise<T> {
   const baseUrl = getBaseUrl();
   if (!baseUrl) {
@@ -118,6 +132,35 @@ export async function fetchTournamentById(tournamentId: string): Promise<Tournam
   const summary = mapInviteToSummary(data);
   const websiteUrl: string | undefined = data?.website || data?.url || (summary.webname ? `https://www.tabroom.com/index/tourn/index.mhtml?tourn_id=${summary.id}` : undefined);
   return { ...summary, websiteUrl, infoHtml: data?.invite_html ?? data?.infoHtml };
+}
+
+// Try backend first (with session) then fall back to public API
+export async function fetchTournamentByIdSmart(tournamentId: string): Promise<TournamentDetail> {
+  const backend = getBackendBaseUrl();
+  const sessionId = await getBackendSessionId();
+  if (backend) {
+    try {
+      const base = backend.endsWith('/') ? backend : backend + '/';
+      const url = new URL(`tournament/${encodeURIComponent(tournamentId)}`, base);
+      if (sessionId) url.searchParams.set('sessionId', sessionId);
+      const resp = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+      if (resp.ok) {
+        const body = await resp.json();
+        const core = Array.isArray(body) ? (body[0] || body) : (body?.tournament || body?.tourn || body);
+        const id = String(core?.id ?? core?.tourn_id ?? tournamentId);
+        const name = String(core?.name ?? core?.tourn_name ?? core?.title ?? 'Unknown');
+        const city = core?.city ? String(core.city) : undefined;
+        const state = core?.state ? String(core.state) : undefined;
+        const location = [city, state].filter(Boolean).join(', ') || undefined;
+        const startDate = core?.start || core?.startDate || core?.start_date;
+        const endDate = core?.end || core?.endDate || core?.end_date;
+        const webname = core?.webname ? String(core.webname) : undefined;
+        const websiteUrl: string | undefined = core?.website || core?.url || (webname ? `https://www.tabroom.com/index/tourn/index.mhtml?tourn_id=${id}` : undefined);
+        return { id, name, location, startDate, endDate, webname, websiteUrl, infoHtml: core?.invite_html ?? core?.infoHtml };
+      }
+    } catch {}
+  }
+  return fetchTournamentById(tournamentId);
 }
 
 export async function getSystemStatus(): Promise<Record<string, any>> {
@@ -273,17 +316,148 @@ export async function backendFetchBallotsBySession(sessionId: string): Promise<s
   const baseUrl = getBackendBaseUrl();
   if (!baseUrl) throw new Error('Backend base URL not configured');
   const url = new URL('ballots', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId }),
-  });
+  const urlWithQuery = new URL(url.toString());
+  urlWithQuery.searchParams.set('sessionId', sessionId);
+  const res = await fetch(urlWithQuery.toString(), { headers: { Accept: 'application/json' } });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Fetch ballots failed ${res.status}: ${text}`);
   }
   const data = await res.json();
   return data.html as string;
+}
+
+export async function fetchBallotsHtmlSession(): Promise<string> {
+  const sessionId = await getBackendSessionId();
+  if (!sessionId) throw new Error('Not logged in');
+
+  const configured = getBackendBaseUrl();
+  const candidates = [
+    configured,
+    'http://10.0.0.5:3000/',
+    'http://192.168.68.73:3000/',
+    'http://127.0.0.1:3000/',
+    'http://localhost:3000/',
+  ].filter(Boolean) as string[];
+
+  for (const base of candidates) {
+    try {
+      const baseUrl = base.endsWith('/') ? base : base + '/';
+      const url = new URL('ballots', baseUrl);
+      url.searchParams.set('sessionId', sessionId);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(url.toString(), { headers: { Accept: 'application/json' }, signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.html) return data.html as string;
+      }
+    } catch {}
+  }
+  throw new Error('Ballots request failed. Backend unreachable or session expired.');
+}
+
+export async function fetchLatestBallotHtml(): Promise<string> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const sessionId = await getBackendSessionId();
+  if (!sessionId) throw new Error('Not logged in');
+  const candidates = [
+    baseUrl,
+    'http://10.0.0.5:3000/',
+    'http://192.168.68.73:3000/',
+    'http://127.0.0.1:3000/',
+    'http://localhost:3000/',
+  ].filter(Boolean) as string[];
+  for (const base of candidates) {
+    try {
+      const b = base.endsWith('/') ? base : base + '/';
+      const url = new URL('ballots/latest', b);
+      url.searchParams.set('sessionId', sessionId);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(url.toString(), { headers: { Accept: 'application/json' }, signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.html) return data.html as string;
+      }
+    } catch {}
+  }
+  throw new Error('Latest ballot fetch failed');
+}
+
+export type ParsedBallot = {
+  tournName: string;
+  tournUrl?: string;
+  dateIso?: string;
+  dateEpochMs?: number;
+  code?: string;
+  division?: string;
+  resultUrl?: string;
+};
+
+export async function fetchParsedBallots(): Promise<ParsedBallot[]> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const sessionId = await getBackendSessionId();
+  if (!sessionId) throw new Error('Not logged in');
+  const base = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
+  const url = new URL('ballots/parsed', base);
+  url.searchParams.set('sessionId', sessionId);
+  const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Fetch parsed ballots failed ${res.status}: ${text}`);
+  }
+  const data = await res.json();
+  return (data?.results as ParsedBallot[]) || [];
+}
+
+export async function fetchMostRecentBallot(): Promise<ParsedBallot | undefined> {
+  const items = await fetchParsedBallots();
+  return items[0];
+}
+
+export type ActiveTournament = {
+  id?: string;
+  name: string;
+  url?: string;
+  dateIso?: string;
+  dateEpochMs?: number;
+  event?: string;
+  status?: string;
+};
+
+export async function fetchActiveTournaments(): Promise<ActiveTournament[]> {
+  const baseUrl = getBackendBaseUrl();
+  if (!baseUrl) throw new Error('Backend base URL not configured');
+  const sessionId = await getBackendSessionId();
+  if (!sessionId) throw new Error('Not logged in');
+  const candidates = [
+    baseUrl,
+    'http://10.0.0.5:3000/',
+    'http://192.168.68.73:3000/',
+    'http://127.0.0.1:3000/',
+    'http://localhost:3000/',
+  ].filter(Boolean) as string[];
+  for (const base of candidates) {
+    try {
+      const b = base.endsWith('/') ? base : base + '/';
+      const url = new URL('active-tournaments', b);
+      url.searchParams.set('sessionId', sessionId);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(url.toString(), { headers: { Accept: 'application/json' }, signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json();
+        return (data?.items as ActiveTournament[]) || [];
+      }
+    } catch {}
+  }
+  throw new Error('Active tournaments fetch failed');
 }
 
 export async function backendBrowserLogin(email: string, password: string, headless: boolean = true): Promise<{ token: string; cookie_name?: string }> {
