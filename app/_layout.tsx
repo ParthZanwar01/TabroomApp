@@ -1,17 +1,35 @@
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { Redirect, Stack } from 'expo-router';
-import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import React, { useEffect, useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
 
   console.log('RootLayoutNav - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
+  console.log('RootLayoutNav - segments:', segments);
 
-  // Check if we're already on the login page (web only)
-  const isOnLoginPage = Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname === '/login';
+  // Check if we're on the login page
+  const isOnLoginPage = useMemo(() => {
+    return segments.some(segment => segment === 'login');
+  }, [segments]);
+  
   console.log('RootLayoutNav - isOnLoginPage:', isOnLoginPage);
+
+  useEffect(() => {
+    if (isLoading) return; // Don't redirect while loading
+
+    if (!isAuthenticated && !isOnLoginPage) {
+      console.log('RootLayoutNav - navigating to login');
+      router.replace('/login');
+    } else if (isAuthenticated && isOnLoginPage) {
+      console.log('RootLayoutNav - navigating to main app');
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, isLoading, isOnLoginPage, router]);
 
   if (isLoading) {
     console.log('RootLayoutNav - showing loading screen');
@@ -20,11 +38,6 @@ function RootLayoutNav() {
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
-  }
-
-  if (!isAuthenticated && !isOnLoginPage) {
-    console.log('RootLayoutNav - redirecting to login');
-    return <Redirect href="/login" />;
   }
 
   console.log('RootLayoutNav - showing main app');

@@ -40,7 +40,7 @@ export default function ParticlesBackground({ children }: ParticlesBackgroundPro
           setParticlesConfig({
             background: {
               color: {
-                value: isDark ? '#000000' : '#FFFFFF',
+                value: "transparent",
               },
             },
             fpsLimit: 120,
@@ -58,11 +58,11 @@ export default function ParticlesBackground({ children }: ParticlesBackgroundPro
               },
               modes: {
                 push: {
-                  quantity: 4,
+                  quantity: 6,
                 },
                 repulse: {
-                  distance: 100,
-                  duration: 0.4,
+                  distance: 200,
+                  duration: 0.6,
                 },
               },
             },
@@ -72,13 +72,13 @@ export default function ParticlesBackground({ children }: ParticlesBackgroundPro
               },
               links: {
                 color: textColor,
-                distance: 150,
+                distance: 200,
                 enable: true,
-                opacity: 0.5,
+                opacity: 0.3,
                 width: 1,
               },
               collisions: {
-                enable: true,
+                enable: false,
               },
               move: {
                 direction: "none",
@@ -86,26 +86,33 @@ export default function ParticlesBackground({ children }: ParticlesBackgroundPro
                 outModes: {
                   default: "bounce",
                 },
-                random: false,
-                speed: 1,
+                random: true,
+                speed: 0.5,
                 straight: false,
               },
               number: {
                 density: {
                   enable: true,
-                  area: 800,
+                  area: 1000,
                 },
-                value: 80,
+                value: 200,
               },
               opacity: {
-                value: 0.5,
+                value: 0.6,
               },
               shape: {
                 type: "circle",
               },
               size: {
-                value: { min: 1, max: 5 },
+                value: { min: 1, max: 3 },
               },
+              twinkle: {
+                particles: {
+                  enable: true,
+                  frequency: 0.05,
+                  opacity: 1
+                }
+              }
             },
             detectRetina: true,
           });

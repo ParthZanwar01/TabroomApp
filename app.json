@@ -1,22 +1,31 @@
 {
   "expo": {
-    "name": "MyReactNativeApp",
-    "slug": "MyReactNativeApp",
+    "name": "Tabroom App",
+    "slug": "tabroom-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myreactnativeapp",
+    "scheme": "tabroomapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tabroom.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.tabroom.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
@@ -41,8 +50,8 @@
     "extra": {
       "tabroomApiBaseUrl": "https://api.tabroom.com/v1/",
       "tabroomApiBasic": "",
-      "backendBaseUrl": "http://localhost:8000/",
-      "nodePupBaseUrl": "http://localhost:8000/"
+      "backendBaseUrl": "http://192.168.68.59:8000/",
+      "nodePupBaseUrl": "http://192.168.68.59:8000/"
     }
   }
 }

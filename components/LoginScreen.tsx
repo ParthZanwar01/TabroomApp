@@ -21,7 +21,7 @@ export function LoginScreen() {
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
   const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
+  const primaryColor = useThemeColor({}, 'primary');
   const cardBackgroundColor = useThemeColor({}, 'card');
   const borderColor = useThemeColor({}, 'border');
   const placeholderColor = useThemeColor({ light: 'rgba(0,0,0,0.5)', dark: 'rgba(255,255,255,0.5)' }, 'text');
@@ -41,10 +41,12 @@ export function LoginScreen() {
     
     try {
       const configured = (Constants.expoConfig?.extra as { nodePupBaseUrl?: string } | undefined)?.nodePupBaseUrl || process.env.EXPO_PUBLIC_NODE_PUP_BASE_URL;
+      console.log('Configured URL:', configured);
       const candidates = [
+        'http://192.168.68.59:8000/', // Put IP first for mobile
         configured,
-        'http://127.0.0.1:3000/',
-        'http://localhost:3000/',
+        'http://127.0.0.1:8000/',
+        'http://localhost:8000/',
       ].filter(Boolean) as string[];
 
       let sessionId: string | undefined;
@@ -123,7 +125,7 @@ export function LoginScreen() {
     return (
       <ThemedView style={[styles.container, { backgroundColor }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={tintColor} />
+          <ActivityIndicator size="large" color={primaryColor} />
           <ThemedText style={[styles.loadingText, { color: textColor }]}>Checking authentication...</ThemedText>
         </View>
       </ThemedView>
@@ -169,13 +171,13 @@ export function LoginScreen() {
             }]}
             placeholderTextColor={placeholderColor}
           />
-          <Pressable style={[styles.button, { backgroundColor: tintColor }]} onPress={onLogin} disabled={loading}>
+          <Pressable style={[styles.button, { backgroundColor: primaryColor }]} onPress={onLogin} disabled={loading}>
             <ThemedText type="defaultSemiBold" style={styles.buttonText}>
               {loading ? 'Logging in...' : 'Login to Tabroom'}
             </ThemedText>
           </Pressable>
           
-          {loading && <ActivityIndicator style={{ marginTop: 16 }} color={tintColor} />}
+          {loading && <ActivityIndicator style={{ marginTop: 16 }} color={primaryColor} />}
           {error && <ThemedText style={[styles.errorText, { color: '#EF4444' }]}>{error}</ThemedText>}
         </View>
 
@@ -205,7 +207,7 @@ export function LoginScreen() {
               Invalid username or password. Please check your credentials and try again.
             </ThemedText>
             <Pressable 
-              style={[styles.modalButton, { backgroundColor: tintColor }]}
+              style={[styles.modalButton, { backgroundColor: primaryColor }]}
               onPress={() => {
                 setShowErrorModal(false);
                 setError(undefined);
@@ -228,9 +230,9 @@ function MainApp() {
   const router = useRouter();
   const backgroundColor = useThemeColor({}, 'background');
   const textColor = useThemeColor({}, 'text');
+  const primaryColor = useThemeColor({}, 'primary');
   const cardBackgroundColor = useThemeColor({}, 'card');
   const borderColor = useThemeColor({}, 'border');
-  const tintColor = useThemeColor({}, 'tint');
   
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
@@ -291,7 +293,7 @@ function MainApp() {
     return (
       <ThemedView style={[styles.container, { backgroundColor }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={tintColor} />
+          <ActivityIndicator size="large" color={primaryColor} />
           <ThemedText style={[styles.loadingText, { color: textColor }]}>
             Loading your Tabroom data...
           </ThemedText>
@@ -310,11 +312,11 @@ function MainApp() {
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={tintColor}
-          />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={primaryColor}
+        />
         }
       >
         {/* Header */}
@@ -329,7 +331,7 @@ function MainApp() {
               </ThemedText>
             </View>
             <Pressable 
-              style={[styles.refreshButton, { backgroundColor: tintColor }]}
+              style={[styles.refreshButton, { backgroundColor: primaryColor }]}
               onPress={onRefresh}
               disabled={refreshing}
             >
@@ -355,25 +357,25 @@ function MainApp() {
           </ThemedText>
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <ThemedText type="title" style={[styles.statNumber, { color: tintColor }]}>
+              <ThemedText type="title" style={[styles.statNumber, { color: primaryColor }]}>
                 {stats.active_tournaments}
               </ThemedText>
               <ThemedText style={[styles.statLabel, { color: textColor }]}>Active Tournaments</ThemedText>
             </View>
             <View style={styles.statItem}>
-              <ThemedText type="title" style={[styles.statNumber, { color: tintColor }]}>
+              <ThemedText type="title" style={[styles.statNumber, { color: primaryColor }]}>
                 {stats.upcoming_rounds}
               </ThemedText>
               <ThemedText style={[styles.statLabel, { color: textColor }]}>Upcoming Rounds</ThemedText>
             </View>
             <View style={styles.statItem}>
-              <ThemedText type="title" style={[styles.statNumber, { color: tintColor }]}>
+              <ThemedText type="title" style={[styles.statNumber, { color: primaryColor }]}>
                 {stats.ballots_to_judge}
               </ThemedText>
               <ThemedText style={[styles.statLabel, { color: textColor }]}>Ballots to Judge</ThemedText>
             </View>
             <View style={styles.statItem}>
-              <ThemedText type="title" style={[styles.statNumber, { color: tintColor }]}>
+              <ThemedText type="title" style={[styles.statNumber, { color: primaryColor }]}>
                 {stats.reminders}
               </ThemedText>
               <ThemedText style={[styles.statLabel, { color: textColor }]}>Reminders</ThemedText>
@@ -388,25 +390,25 @@ function MainApp() {
           </ThemedText>
           <View style={styles.actionButtons}>
             <Pressable 
-              style={[styles.actionButton, { backgroundColor: tintColor }]}
+              style={[styles.actionButton, { backgroundColor: primaryColor }]}
               onPress={() => router.push('/(tabs)/my')}
             >
               <ThemedText style={styles.actionButtonText}>📋 My Tournaments</ThemedText>
             </Pressable>
             <Pressable 
-              style={[styles.actionButton, { backgroundColor: tintColor }]}
+              style={[styles.actionButton, { backgroundColor: primaryColor }]}
               onPress={() => router.push('/(tabs)/tournaments')}
             >
               <ThemedText style={styles.actionButtonText}>🏆 Tournaments</ThemedText>
             </Pressable>
             <Pressable 
-              style={[styles.actionButton, { backgroundColor: tintColor }]}
+              style={[styles.actionButton, { backgroundColor: primaryColor }]}
               onPress={() => router.push('/(tabs)/my')}
             >
               <ThemedText style={styles.actionButtonText}>⏰ Schedule</ThemedText>
             </Pressable>
             <Pressable 
-              style={[styles.actionButton, { backgroundColor: tintColor }]}
+              style={[styles.actionButton, { backgroundColor: primaryColor }]}
               onPress={() => router.push('/(tabs)/tournaments')}
             >
               <ThemedText style={styles.actionButtonText}>📊 Results</ThemedText>

@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
 // Backend API base URL
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://192.168.68.59:8000';
 
 export type TournamentSummary = {
   id: string;
@@ -85,8 +85,8 @@ export async function hasApiKeyConfigured(): Promise<boolean> {
 export async function storeBackendSessionId(sessionId: string): Promise<void> {
   console.log('storeBackendSessionId called with:', sessionId);
   
-  // Check if we're in a web environment
-  if (typeof window !== 'undefined') {
+  // Check if we're in a web environment and localStorage is available
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
     try {
       localStorage.setItem('backend_session_id', sessionId);
       console.log('SessionId stored in localStorage successfully');
@@ -109,26 +109,34 @@ export async function storeBackendSessionId(sessionId: string): Promise<void> {
 }
 
 export async function getBackendSessionId(): Promise<string | undefined> {
-  // Check if we're in a web environment
-  if (typeof window !== 'undefined') {
+  console.log('getBackendSessionId called');
+  
+  // Check if we're in a web environment and localStorage is available
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
     try {
       const val = localStorage.getItem('backend_session_id');
+      console.log('localStorage sessionId:', val);
       return val || undefined;
     } catch (e) {
+      console.log('localStorage get failed:', e);
       return undefined;
     }
   }
 
   try {
     const val = await SecureStore.getItemAsync('backend_session_id');
+    console.log('SecureStore sessionId:', val);
     return val || undefined;
   } catch (e) {
+    console.log('SecureStore get failed:', e);
     // Fallback to AsyncStorage if SecureStore not available
     try {
       const AsyncStorage = await import('@react-native-async-storage/async-storage');
       const val = await AsyncStorage.default.getItem('backend_session_id');
+      console.log('AsyncStorage sessionId:', val);
       return val || undefined;
     } catch (e2) {
+      console.log('AsyncStorage get failed:', e2);
       return undefined;
     }
   }
@@ -149,8 +157,8 @@ export async function setBackendSessionId(sessionId: string): Promise<void> {
 }
 
 export async function clearBackendSessionId(): Promise<void> {
-  // Check if we're in a web environment
-  if (typeof window !== 'undefined') {
+  // Check if we're in a web environment and localStorage is available
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
     try {
       localStorage.removeItem('backend_session_id');
       console.log('SessionId cleared from localStorage');
@@ -542,10 +550,9 @@ export async function fetchBallotsHtmlSession(): Promise<string> {
   const configured = getBackendBaseUrl();
   const candidates = [
     configured,
-    'http://10.0.0.5:3000/',
-    'http://192.168.68.73:3000/',
-    'http://127.0.0.1:3000/',
-    'http://localhost:3000/',
+    'http://192.168.68.59:8000/',
+    'http://127.0.0.1:8000/',
+    'http://localhost:8000/',
   ].filter(Boolean) as string[];
 
   for (const base of candidates) {
@@ -573,10 +580,9 @@ export async function fetchLatestBallotHtml(): Promise<string> {
   if (!sessionId) throw new Error('Not logged in');
   const candidates = [
     baseUrl,
-    'http://10.0.0.5:3000/',
-    'http://192.168.68.73:3000/',
-    'http://127.0.0.1:3000/',
-    'http://localhost:3000/',
+    'http://192.168.68.59:8000/',
+    'http://127.0.0.1:8000/',
+    'http://localhost:8000/',
   ].filter(Boolean) as string[];
   for (const base of candidates) {
     try {

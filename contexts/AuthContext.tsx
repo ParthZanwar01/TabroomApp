@@ -1,6 +1,5 @@
 import { clearBackendSessionId, getBackendSessionId } from '@/lib/api/tabroom';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -14,36 +13,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
-    // Prevent infinite loops
-    if (hasChecked) {
-      return;
-    }
-    
-    // Check if we're already on the login page (web only)
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const currentPath = window.location.pathname;
-      console.log('AuthContext - current path:', currentPath);
-      
-      if (currentPath === '/login') {
-        console.log('AuthContext - already on login page, skipping auth check');
-        setIsLoading(false);
-        setIsAuthenticated(false);
-        setHasChecked(true);
-        return;
-      }
-    }
-    
     checkAuthStatus();
-  }, []); // Remove hasChecked from dependency array
+  }, []); // Run only once on mount
 
   async function checkAuthStatus() {
     console.log('AuthContext - starting checkAuthStatus');
     
     try {
-      const sessionId = await getBackendSessionId();
+      console.log('AuthContext - calling getBackendSessionId...');
+      // Add a timeout to prevent hanging
+      const sessionId = await Promise.race([
+        getBackendSessionId(),
+        new Promise<undefined>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        )
+      ]);
       console.log('AuthContext - sessionId:', sessionId);
       const authenticated = !!sessionId;
       setIsAuthenticated(authenticated);
@@ -54,7 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       console.log('AuthContext - setting isLoading to false');
       setIsLoading(false);
-      setHasChecked(true);
     }
   }
 
@@ -70,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsAuthenticated(false);
     setIsLoading(false);
-    // Don't reset hasChecked to prevent infinite loop
   }
 
   return (
