@@ -2,13 +2,13 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { backendFetchBallots, nodePuppeteerLogin } from '@/lib/api/tabroom';
 import React, { useRef, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 export default function TerminalLoginScreen() {
   const [output, setOutput] = useState('Welcome to Tabroom AI Terminal\nType: login <username> <password>\n');
   const [loading, setLoading] = useState(false);
   const [command, setCommand] = useState('');
-  const scrollRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   function append(line: string) {
     setOutput(prev => prev + (prev.endsWith('\n') ? '' : '\n') + line);
@@ -46,7 +46,7 @@ export default function TerminalLoginScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.terminal} ref={scrollRef as any}>
+      <ScrollView style={styles.terminal} ref={scrollRef}>
         <ThemedText style={styles.output}>{output}</ThemedText>
         <View style={styles.promptRow}>
           <ThemedText style={styles.prompt}>{'>'}</ThemedText>
@@ -62,7 +62,7 @@ export default function TerminalLoginScreen() {
             placeholderTextColor="#0a0"
           />
         </View>
-      </View>
+      </ScrollView>
     </ThemedView>
   );
 }

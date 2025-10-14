@@ -1,123 +1,220 @@
-import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { fetchActiveTournaments, fetchDashboardData } from '@/lib/api/tabroom';
 
 export default function AccountScreen() {
-  const router = useRouter();
+  const { isAuthenticated, login, logout } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
-  const [cookieToken, setCookieToken] = useState<string | undefined>(undefined);
-  const [stages, setStages] = useState<string[]>([]);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [activeTournaments, setActiveTournaments] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  function addStage(msg: string) {
-    setStages(prev => [...prev, msg]);
-  }
+  // Theme colors
+  const primaryColor = useThemeColor({}, 'primary');
+  const cardBackgroundColor = useThemeColor({}, 'card');
+  const borderColor = useThemeColor({}, 'border');
+  const textColor = useThemeColor({}, 'text');
+  const textSecondaryColor = useThemeColor({}, 'textSecondary');
+  const errorColor = useThemeColor({}, 'error');
 
-  async function onCookieLogin() {
+  // Load user data after successful login
+  const loadUserData = useCallback(async () => {
+    try {
+      const dashboard = await fetchDashboardData();
+      setDashboardData(dashboard);
+      
+      const tournaments = await fetchActiveTournaments();
+      setActiveTournaments(tournaments);
+    } catch (e) {
+      console.error('Error loading user data:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadUserData();
+    }
+  }, [isAuthenticated, loadUserData]);
+
+  const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      setError('Enter email/username and password');
+      setError('Please enter both username and password');
       return;
     }
+
     setLoading(true);
     setError(undefined);
-    setStages([]);
+
     try {
-      const configured = (Constants.expoConfig?.extra as { nodePupBaseUrl?: string } | undefined)?.nodePupBaseUrl || process.env.EXPO_PUBLIC_NODE_PUP_BASE_URL;
-      const candidates = [
-        configured,
-        'http://127.0.0.1:3000/',
-        'http://localhost:3000/',
-      ].filter(Boolean) as string[];
-
-      let sessionId: string | undefined;
-      for (const base of candidates) {
-        const baseUrl = base.endsWith('/') ? base : base + '/';
-        addStage(`POST ${baseUrl}login`);
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 12000);
-          const res = await fetch(new URL('login', baseUrl).toString(), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: username.trim(), password }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          addStage(`Status ${res.status}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.sessionId) {
-              sessionId = data.sessionId;
-              break;
-            }
-          } else {
-            const text = await res.text().catch(() => '');
-            addStage(`Response: ${text || res.status}`);
-          }
-        } catch (e) {
-          addStage(`Network error: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-
-      if (!sessionId) {
-        setError('Login failed: backend unreachable or credentials invalid');
-        setLoading(false);
-        return;
-      }
-
-      addStage('Received sessionId');
-      setCookieToken(sessionId);
-      try {
-        // Persist for later requests
-        await import('@/lib/api/tabroom').then(m => m.storeBackendSessionId(sessionId!));
-        addStage('Stored sessionId');
-      } catch {}
+      await login(username, password);
+      setUsername('');
+      setPassword('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Website login failed');
+      setError(e instanceof Error ? e.message : 'Login failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    setDashboardData(null);
+    setActiveTournaments([]);
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadUserData();
+    setRefreshing(false);
+  }, [loadUserData]);
+
+  if (!isAuthenticated) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={styles.header}>
+          <ThemedText type="title" style={[styles.title, { color: textColor }]}>
+            Sign In
+          </ThemedText>
+          <ThemedText style={[styles.subtitle, { color: textSecondaryColor }]}>
+            Connect to your Tabroom account
+          </ThemedText>
+        </View>
+
+        <View style={styles.form}>
+          <View style={styles.inputGroup}>
+            <ThemedText style={[styles.label, { color: textColor }]}>Email</ThemedText>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: cardBackgroundColor, 
+                borderColor: borderColor, 
+                color: textColor 
+              }]}
+              placeholder="Enter your email"
+              placeholderTextColor={textSecondaryColor}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <ThemedText style={[styles.label, { color: textColor }]}>Password</ThemedText>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: cardBackgroundColor, 
+                borderColor: borderColor, 
+                color: textColor 
+              }]}
+              placeholder="Enter your password"
+              placeholderTextColor={textSecondaryColor}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <ThemedText style={[styles.errorText, { color: errorColor }]}>
+                {error}
+              </ThemedText>
+            </View>
+          )}
+
+          <Pressable
+            style={[styles.loginButton, { backgroundColor: primaryColor }]}
+            onPress={handleLogin}
+            disabled={loading}
+            android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <ThemedText style={styles.loginButtonText}>Sign In</ThemedText>
+            )}
+          </Pressable>
+        </View>
+      </ThemedView>
+    );
   }
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">Account</ThemedText>
-      <View style={styles.form}>
-        <TextInput
-          placeholder="Email or Username"
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={username}
-          onChangeText={setUsername}
-          style={styles.input}
-        />
-        <TextInput
-          placeholder="Password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          style={styles.input}
-        />
-        <Pressable style={styles.button} onPress={onCookieLogin} disabled={loading}>
-          <ThemedText type="defaultSemiBold">Website Login (Cookie)</ThemedText>
-        </Pressable>
-        {loading ? <ActivityIndicator style={{ marginTop: 8 }} /> : null}
-        {error ? <ThemedText>{error}</ThemedText> : null}
-        {cookieToken ? <ThemedText>Cookie active</ThemedText> : null}
-        {stages.length > 0 ? (
-          <View style={styles.stages}>
-            {stages.map((s, i) => (
-              <ThemedText key={i}>{`• ${s}`}</ThemedText>
+      <ScrollView 
+        style={styles.dashboard}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <ThemedText type="title" style={[styles.title, { color: textColor }]}>
+            Welcome back!
+          </ThemedText>
+          <ThemedText style={[styles.subtitle, { color: textSecondaryColor }]}>
+            {dashboardData?.user_name || 'User'}
+          </ThemedText>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]}>
+            <ThemedText type="subtitle" style={[styles.statNumber, { color: primaryColor }]}>
+              {dashboardData?.stats?.active_tournaments || 0}
+            </ThemedText>
+            <ThemedText style={[styles.statLabel, { color: textSecondaryColor }]}>
+              Active Tournaments
+            </ThemedText>
+          </View>
+          
+          <View style={[styles.statCard, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]}>
+            <ThemedText type="subtitle" style={[styles.statNumber, { color: primaryColor }]}>
+              {dashboardData?.stats?.ballots_to_judge || 0}
+            </ThemedText>
+            <ThemedText style={[styles.statLabel, { color: textSecondaryColor }]}>
+              Ballots to Judge
+            </ThemedText>
+          </View>
+        </View>
+
+        {activeTournaments.length > 0 && (
+          <View style={styles.section}>
+            <ThemedText type="subtitle" style={[styles.sectionTitle, { color: textColor }]}>
+              Recent Tournaments
+            </ThemedText>
+            {activeTournaments.slice(0, 3).map((tournament, index) => (
+              <View key={index} style={[styles.tournamentItem, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]}>
+                <ThemedText style={[styles.tournamentName, { color: textColor }]}>
+                  {tournament.name}
+                </ThemedText>
+                {tournament.status && (
+                  <ThemedText style={[styles.tournamentStatus, { color: textSecondaryColor }]}>
+                    {tournament.status}
+                  </ThemedText>
+                )}
+              </View>
             ))}
           </View>
-        ) : null}
-      </View>
+        )}
+
+        <View style={styles.actions}>
+          <Pressable
+            style={[styles.logoutButton, { borderColor: borderColor }]}
+            onPress={handleLogout}
+            android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
+          >
+            <ThemedText style={[styles.logoutButtonText, { color: textColor }]}>
+              Sign Out
+            </ThemedText>
+          </Pressable>
+        </View>
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -125,29 +222,129 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    gap: 12,
+  },
+  header: {
+    padding: 24,
+    paddingBottom: 16,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    opacity: 0.8,
   },
   form: {
-    gap: 10,
-    marginTop: 12,
+    padding: 24,
+    paddingTop: 0,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   input: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  button: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderWidth: 1,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
   },
-  stages: {
-    gap: 6,
-    marginTop: 12,
+  errorContainer: {
+    marginBottom: 20,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+  },
+  errorText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  loginButton: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dashboard: {
+    flex: 1,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  section: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  tournamentItem: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  tournamentName: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  tournamentStatus: {
+    fontSize: 14,
+  },
+  actions: {
+    padding: 24,
+    paddingTop: 0,
+  },
+  logoutButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
-
-

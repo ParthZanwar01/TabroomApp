@@ -1,6 +1,9 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
+// Backend API base URL
+const API_BASE_URL = 'http://localhost:8000';
+
 export type TournamentSummary = {
   id: string;
   name: string;
@@ -13,6 +16,11 @@ export type TournamentSummary = {
 export type TournamentDetail = TournamentSummary & {
   websiteUrl?: string;
   infoHtml?: string;
+  events?: Array<{
+    name: string;
+    division?: string;
+    type?: string;
+  }>;
   // Add other fields as needed
 };
 
@@ -42,9 +50,13 @@ function getNodePupBaseUrl(): string | undefined {
 }
 
 async function getApiBasicHeader(): Promise<Record<string, string> | undefined> {
-  // 1) Secure, runtime-provided key (preferred)
-  const stored = await SecureStore.getItemAsync('tabroom_api_basic');
-  if (stored) return { Authorization: `Basic ${stored}` };
+  try {
+    // 1) Secure, runtime-provided key (preferred)
+    const stored = await SecureStore.getItemAsync('tabroom_api_basic');
+    if (stored) return { Authorization: `Basic ${stored}` };
+  } catch (e) {
+    // SecureStore not available, continue to fallback
+  }
 
   // 2) Env/app.json provided key
   const preEncoded = process.env.EXPO_PUBLIC_TABROOM_API_BASIC || (Constants.expoConfig?.extra as { tabroomApiBasic?: string } | undefined)?.tabroomApiBasic;
@@ -60,23 +72,155 @@ export function isApiConfigured(): boolean {
 }
 
 export async function hasApiKeyConfigured(): Promise<boolean> {
-  const stored = await SecureStore.getItemAsync('tabroom_api_basic');
-  if (stored) return true;
+  try {
+    const stored = await SecureStore.getItemAsync('tabroom_api_basic');
+    if (stored) return true;
+  } catch (e) {
+    // SecureStore not available, continue to fallback
+  }
   return isApiConfigured();
 }
 
 // Backend session helpers
 export async function storeBackendSessionId(sessionId: string): Promise<void> {
-  await SecureStore.setItemAsync('backend_session_id', sessionId);
+  console.log('storeBackendSessionId called with:', sessionId);
+  
+  // Check if we're in a web environment
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('backend_session_id', sessionId);
+      console.log('SessionId stored in localStorage successfully');
+      return;
+    } catch (e) {
+      console.log('localStorage failed:', e);
+    }
+  }
+
+  try {
+    await SecureStore.setItemAsync('backend_session_id', sessionId);
+    console.log('SessionId stored in SecureStore successfully');
+  } catch (e) {
+    console.log('SecureStore failed, using AsyncStorage:', e);
+    // Fallback to AsyncStorage if SecureStore not available
+    const AsyncStorage = await import('@react-native-async-storage/async-storage');
+    await AsyncStorage.default.setItem('backend_session_id', sessionId);
+    console.log('SessionId stored in AsyncStorage successfully');
+  }
 }
 
 export async function getBackendSessionId(): Promise<string | undefined> {
-  const val = await SecureStore.getItemAsync('backend_session_id');
-  return val || undefined;
+  // Check if we're in a web environment
+  if (typeof window !== 'undefined') {
+    try {
+      const val = localStorage.getItem('backend_session_id');
+      return val || undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  try {
+    const val = await SecureStore.getItemAsync('backend_session_id');
+    return val || undefined;
+  } catch (e) {
+    // Fallback to AsyncStorage if SecureStore not available
+    try {
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      const val = await AsyncStorage.default.getItem('backend_session_id');
+      return val || undefined;
+    } catch (e2) {
+      return undefined;
+    }
+  }
+}
+
+export async function setBackendSessionId(sessionId: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync('backend_session_id', sessionId);
+  } catch (e) {
+    // Fallback to AsyncStorage if SecureStore not available
+    try {
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      await AsyncStorage.default.setItem('backend_session_id', sessionId);
+    } catch (e2) {
+      console.error('Failed to store backend session ID:', e2);
+    }
+  }
 }
 
 export async function clearBackendSessionId(): Promise<void> {
-  await SecureStore.deleteItemAsync('backend_session_id');
+  // Check if we're in a web environment
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('backend_session_id');
+      console.log('SessionId cleared from localStorage');
+      return;
+    } catch (e) {
+      console.log('localStorage clear failed:', e);
+    }
+  }
+
+  try {
+    await SecureStore.deleteItemAsync('backend_session_id');
+    console.log('SessionId cleared from SecureStore');
+  } catch (e) {
+    // Fallback to AsyncStorage if SecureStore not available
+    try {
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      await AsyncStorage.default.removeItem('backend_session_id');
+      console.log('SessionId cleared from AsyncStorage');
+    } catch (e2) {
+      // Ignore errors
+    }
+  }
+}
+
+export async function fetchDashboardData(): Promise<any> {
+  const sessionId = await getBackendSessionId();
+  console.log('fetchDashboardData - sessionId:', sessionId);
+  if (!sessionId) {
+    throw new Error('No active session');
+  }
+
+  const url = `${API_BASE_URL}/dashboard`;
+  console.log('fetchDashboardData - calling:', url);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ sessionId }),
+  });
+
+  console.log('fetchDashboardData - response status:', response.status);
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    console.log('fetchDashboardData - error response:', errorText);
+    throw new Error(`Failed to fetch dashboard data: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchUserTournaments(): Promise<any> {
+  const sessionId = await getBackendSessionId();
+  if (!sessionId) {
+    throw new Error('No active session');
+  }
+
+  const url = `${API_BASE_URL}/active-tournaments?sessionId=${sessionId}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tournaments: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -113,18 +257,55 @@ function mapInviteToSummary(invite: any): TournamentSummary {
 }
 
 export async function listUpcomingTournaments(circuit?: string): Promise<TournamentSummary[]> {
-  const path = circuit ? `public/invite/upcoming/${encodeURIComponent(circuit)}` : 'public/invite/upcoming';
-  const data = await apiGet<any>(path);
-  const list: any[] = Array.isArray(data) ? data : (data?.tournaments ?? data?.result ?? []);
-  return list.map(mapInviteToSummary);
+  try {
+    const response = await fetch(`${API_BASE_URL}/tournaments/upcoming`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Raw upcoming tournaments data:', data);
+
+    const tournaments: TournamentSummary[] = data.tournaments || [];
+    console.log('Transformed upcoming tournaments:', tournaments);
+    return tournaments;
+  } catch (error) {
+    console.error('Error fetching upcoming tournaments:', error);
+    throw error;
+  }
 }
 
 export async function searchTournaments(searchString: string, time: 'past' | 'future' | 'both' = 'both'): Promise<TournamentSummary[]> {
-  const safe = encodeURIComponent(searchString);
-  const path = `public/search/${encodeURIComponent(time)}/${safe}`;
-  const data = await apiGet<any>(path);
-  const list: any[] = Array.isArray(data) ? data : (data?.tournaments ?? data?.result ?? []);
-  return list.map(mapInviteToSummary);
+  try {
+    const response = await fetch(`${API_BASE_URL}/tournaments/search?q=${encodeURIComponent(searchString)}&time=${encodeURIComponent(time)}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Raw search tournaments data:', data);
+
+    const tournaments: TournamentSummary[] = data.tournaments || [];
+    console.log('Transformed search tournaments:', tournaments);
+    return tournaments;
+  } catch (error) {
+    console.error('Error searching tournaments:', error);
+    throw error;
+  }
 }
 
 export async function fetchTournamentById(tournamentId: string): Promise<TournamentDetail> {
@@ -136,30 +317,40 @@ export async function fetchTournamentById(tournamentId: string): Promise<Tournam
 
 // Try backend first (with session) then fall back to public API
 export async function fetchTournamentByIdSmart(tournamentId: string): Promise<TournamentDetail> {
-  const backend = getBackendBaseUrl();
   const sessionId = await getBackendSessionId();
-  if (backend) {
-    try {
-      const base = backend.endsWith('/') ? backend : backend + '/';
-      const url = new URL(`tournament/${encodeURIComponent(tournamentId)}`, base);
-      if (sessionId) url.searchParams.set('sessionId', sessionId);
-      const resp = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
-      if (resp.ok) {
-        const body = await resp.json();
-        const core = Array.isArray(body) ? (body[0] || body) : (body?.tournament || body?.tourn || body);
-        const id = String(core?.id ?? core?.tourn_id ?? tournamentId);
-        const name = String(core?.name ?? core?.tourn_name ?? core?.title ?? 'Unknown');
-        const city = core?.city ? String(core.city) : undefined;
-        const state = core?.state ? String(core.state) : undefined;
-        const location = [city, state].filter(Boolean).join(', ') || undefined;
-        const startDate = core?.start || core?.startDate || core?.start_date;
-        const endDate = core?.end || core?.endDate || core?.end_date;
-        const webname = core?.webname ? String(core.webname) : undefined;
-        const websiteUrl: string | undefined = core?.website || core?.url || (webname ? `https://www.tabroom.com/index/tourn/index.mhtml?tourn_id=${id}` : undefined);
-        return { id, name, location, startDate, endDate, webname, websiteUrl, infoHtml: core?.invite_html ?? core?.infoHtml };
-      }
-    } catch {}
+  
+  try {
+    const url = `${API_BASE_URL}/tournament/${encodeURIComponent(tournamentId)}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (response.ok) {
+      const tournament = await response.json();
+      console.log('Raw tournament details from backend:', tournament);
+      
+      // The backend already returns the data in the correct format
+      return {
+        id: tournament.id,
+        name: tournament.name,
+        location: tournament.location,
+        startDate: tournament.startDate,
+        endDate: tournament.endDate,
+        webname: tournament.webname,
+        websiteUrl: tournament.websiteUrl,
+        events: tournament.events || [],
+        infoHtml: tournament.infoHtml
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching tournament details from backend:', error);
   }
+  
+  // Fallback to direct API call
   return fetchTournamentById(tournamentId);
 }
 
@@ -168,26 +359,43 @@ export async function getSystemStatus(): Promise<Record<string, any>> {
 }
 
 export async function login(username: string, password: string): Promise<{ person_id: number; name: string }> {
-  const baseUrl = getBaseUrl();
-  if (!baseUrl) throw new Error('Tabroom API base URL is not configured.');
-  const basic = await getApiBasicHeader();
-  if (!basic) throw new Error('API key required to call /login. Set EXPO_PUBLIC_TABROOM_API_BASIC or expo.extra.tabroomApiBasic.');
-  const url = new URL('login', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-  const response = await fetch(url.toString(), {
+  // Use backend session login for proper session management
+  const response = await fetch(`${API_BASE_URL}/session-login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...basic,
     },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ 
+      username: username,
+      password: password 
+    }),
   });
+  
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     throw new Error(`Login failed ${response.status}: ${text}`);
   }
-  const session = await response.json();
-  await SecureStore.setItemAsync('tabroom_session', JSON.stringify(session));
-  return session as { person_id: number; name: string };
+  
+  const sessionData = await response.json();
+  const sessionId = sessionData.sessionId;
+  
+  // Store the backend session ID for future API calls
+  await storeBackendSessionId(sessionId);
+  
+  // Get user info from dashboard to return person_id and name
+  try {
+    const dashboardData = await fetchDashboardData();
+    return {
+      person_id: dashboardData.user_id || 0,
+      name: dashboardData.user_name || 'User'
+    };
+  } catch (error) {
+    // If dashboard fails, return basic info
+    return {
+      person_id: 0,
+      name: 'User'
+    };
+  }
 }
 
 export async function logout(): Promise<void> {
@@ -431,33 +639,26 @@ export type ActiveTournament = {
 };
 
 export async function fetchActiveTournaments(): Promise<ActiveTournament[]> {
-  const baseUrl = getBackendBaseUrl();
-  if (!baseUrl) throw new Error('Backend base URL not configured');
   const sessionId = await getBackendSessionId();
   if (!sessionId) throw new Error('Not logged in');
-  const candidates = [
-    baseUrl,
-    'http://10.0.0.5:3000/',
-    'http://192.168.68.73:3000/',
-    'http://127.0.0.1:3000/',
-    'http://localhost:3000/',
-  ].filter(Boolean) as string[];
-  for (const base of candidates) {
-    try {
-      const b = base.endsWith('/') ? base : base + '/';
-      const url = new URL('active-tournaments', b);
-      url.searchParams.set('sessionId', sessionId);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      const res = await fetch(url.toString(), { headers: { Accept: 'application/json' }, signal: controller.signal });
-      clearTimeout(timeout);
-      if (res.ok) {
-        const data = await res.json();
-        return (data?.items as ActiveTournament[]) || [];
-      }
-    } catch {}
+  
+  const url = new URL(`${API_BASE_URL}/active-tournaments`);
+  url.searchParams.set('sessionId', sessionId);
+  
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Failed to fetch active tournaments ${response.status}: ${text}`);
   }
-  throw new Error('Active tournaments fetch failed');
+  
+  const data = await response.json();
+  return data.tournaments || [];
 }
 
 export async function backendBrowserLogin(email: string, password: string, headless: boolean = true): Promise<{ token: string; cookie_name?: string }> {

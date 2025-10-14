@@ -86,7 +86,7 @@ export default function TournamentDetailsScreen() {
           <ThemedText style={styles.errorIcon}>❓</ThemedText>
           <ThemedText type="subtitle" style={styles.errorTitle}>Tournament Not Found</ThemedText>
           <ThemedText style={styles.errorMessage}>
-            The tournament you're looking for doesn't exist or has been removed.
+            The tournament you&apos;re looking for doesn&apos;t exist or has been removed.
           </ThemedText>
           <Pressable style={styles.retryButton} onPress={() => router.back()}>
             <ThemedText style={styles.retryButtonText}>Go Back</ThemedText>
@@ -118,7 +118,7 @@ export default function TournamentDetailsScreen() {
               <ThemedText style={styles.dateText}>
                 {[tournament.startDate, tournament.endDate]
                   .filter(Boolean)
-                  .map(formatDate)
+                  .map((dateString) => formatDate(dateString!))
                   .join(' — ')}
               </ThemedText>
             </View>
@@ -141,7 +141,7 @@ export default function TournamentDetailsScreen() {
               Events ({tournament.events.length})
             </ThemedText>
             <View style={styles.eventsContainer}>
-              {tournament.events.map((event, index) => (
+              {tournament.events.map((event: any, index: number) => (
                 <View key={event.id} style={styles.eventCard}>
                   <View style={styles.eventHeader}>
                     <View style={styles.eventNumber}>

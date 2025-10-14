@@ -2,204 +2,230 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import ParticlesBackground from '@/components/ParticlesBackground';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const primaryColor = useThemeColor({}, 'primary');
+  const cardBackgroundColor = useThemeColor({}, 'card');
+  const borderColor = useThemeColor({}, 'border');
+  const textColor = useThemeColor({}, 'text');
+  const textSecondaryColor = useThemeColor({}, 'textSecondary');
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <ThemedText type="title" style={styles.heroTitle}>
-            Debate Tournaments
-          </ThemedText>
-          <ThemedText style={styles.heroSubtitle}>
-            Find upcoming tournaments and browse details
-          </ThemedText>
-        </View>
-
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <ThemedText type="subtitle" style={styles.statNumber}>50+</ThemedText>
-            <ThemedText style={styles.statLabel}>Active Tournaments</ThemedText>
-          </View>
-          <View style={styles.statCard}>
-            <ThemedText type="subtitle" style={styles.statNumber}>1000+</ThemedText>
-            <ThemedText style={styles.statLabel}>Debaters</ThemedText>
-          </View>
-        </View>
-
-        <View style={styles.actions}>
-          <Pressable 
-            style={styles.primaryButton} 
-            onPress={() => router.push('/(tabs)/tournaments')}
-            android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
-          >
-            <ThemedText type="defaultSemiBold" style={styles.primaryButtonText}>
-              Browse Tournaments
+    <ParticlesBackground>
+      <ThemedView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Hero Section */}
+          <View style={styles.hero}>
+            <ThemedText type="title" style={[styles.heroTitle, { color: textColor }]}>
+              {isAuthenticated ? 'Welcome Back!' : 'Tabroom App'}
             </ThemedText>
-          </Pressable>
-          
-          <Pressable 
-            style={styles.secondaryButton} 
-            onPress={() => router.push('/(tabs)/tournaments')}
-            android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
-          >
-            <ThemedText type="defaultSemiBold" style={styles.secondaryButtonText}>
-              Search Tournaments
+            <ThemedText style={[styles.heroSubtitle, { color: textSecondaryColor }]}>
+              {isAuthenticated 
+                ? 'Manage your tournaments and stay updated'
+                : 'Connect to Tabroom and explore tournaments'
+              }
             </ThemedText>
-          </Pressable>
-        </View>
+          </View>
 
-        <View style={styles.features}>
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <ThemedText style={styles.featureIconText}>🏆</ThemedText>
-            </View>
-            <View style={styles.featureContent}>
-              <ThemedText type="subtitle">Tournament Details</ThemedText>
-              <ThemedText style={styles.featureDescription}>
-                Get comprehensive information about debate tournaments
-              </ThemedText>
-            </View>
+          {/* Quick Actions */}
+          <View style={styles.actions}>
+            {isAuthenticated ? (
+              <>
+                <Pressable 
+                  style={[styles.primaryButton, { backgroundColor: primaryColor }]} 
+                  onPress={() => router.push('/(tabs)/my')}
+                  android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
+                >
+                  <ThemedText type="defaultSemiBold" style={styles.primaryButtonText}>
+                    My Tournaments
+                  </ThemedText>
+                </Pressable>
+                
+                <Pressable 
+                  style={[styles.secondaryButton, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]} 
+                  onPress={() => router.push('/(tabs)/tournaments')}
+                  android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
+                >
+                  <ThemedText type="defaultSemiBold" style={[styles.secondaryButtonText, { color: textColor }]}>
+                    Browse All
+                  </ThemedText>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Pressable 
+                  style={[styles.primaryButton, { backgroundColor: primaryColor }]} 
+                  onPress={() => router.push('/(tabs)/account')}
+                  android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
+                >
+                  <ThemedText type="defaultSemiBold" style={styles.primaryButtonText}>
+                    Sign In
+                  </ThemedText>
+                </Pressable>
+                
+                <Pressable 
+                  style={[styles.secondaryButton, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]} 
+                  onPress={() => router.push('/(tabs)/tournaments')}
+                  android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
+                >
+                  <ThemedText type="defaultSemiBold" style={[styles.secondaryButtonText, { color: textColor }]}>
+                    Browse Tournaments
+                  </ThemedText>
+                </Pressable>
+              </>
+            )}
           </View>
-          
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <ThemedText style={styles.featureIconText}>🔍</ThemedText>
-            </View>
-            <View style={styles.featureContent}>
-              <ThemedText type="subtitle">Smart Search</ThemedText>
-              <ThemedText style={styles.featureDescription}>
-                Find tournaments by name, location, or date
+
+          {/* Features Grid */}
+          <View style={styles.featuresGrid}>
+            <Pressable 
+              style={[styles.featureCard, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]}
+              onPress={() => router.push('/(tabs)/my')}
+              android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
+            >
+              <View style={[styles.featureIcon, { backgroundColor: primaryColor + '15' }]}>
+                <ThemedText style={styles.featureIconText}>📋</ThemedText>
+              </View>
+              <ThemedText type="subtitle" style={[styles.featureTitle, { color: textColor }]}>
+                My Tournaments
               </ThemedText>
-            </View>
+              <ThemedText style={[styles.featureDescription, { color: textSecondaryColor }]}>
+                View your registered tournaments
+              </ThemedText>
+            </Pressable>
+
+            <Pressable 
+              style={[styles.featureCard, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]}
+              onPress={() => router.push('/(tabs)/tournaments')}
+              android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
+            >
+              <View style={[styles.featureIcon, { backgroundColor: primaryColor + '15' }]}>
+                <ThemedText style={styles.featureIconText}>🔍</ThemedText>
+              </View>
+              <ThemedText type="subtitle" style={[styles.featureTitle, { color: textColor }]}>
+                Search
+              </ThemedText>
+              <ThemedText style={[styles.featureDescription, { color: textSecondaryColor }]}>
+                Find tournaments by name or location
+              </ThemedText>
+            </Pressable>
           </View>
-        </View>
-      </ScrollView>
-    </ThemedView>
+        </ScrollView>
+      </ThemedView>
+    </ParticlesBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
-    padding: 20,
+    padding: 24,
     paddingBottom: 40,
   },
   hero: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 32,
+    marginTop: 60,
+    marginBottom: 50,
   },
   heroTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 42,
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
+    letterSpacing: -1,
   },
   heroSubtitle: {
-    fontSize: 16,
+    fontSize: 20,
     textAlign: 'center',
-    opacity: 0.7,
-    lineHeight: 22,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 32,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#F1F5F9',
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#3B82F6',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
+    lineHeight: 28,
+    maxWidth: 320,
     opacity: 0.8,
-    textAlign: 'center',
   },
   actions: {
-    gap: 16,
-    marginBottom: 32,
+    gap: 20,
+    marginBottom: 50,
   },
   primaryButton: {
     borderRadius: 16,
-    backgroundColor: '#3B82F6',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 32,
     alignItems: 'center',
-    elevation: 3,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
   },
   primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   secondaryButton: {
-    paddingVertical: 18,
-    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 32,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderWidth: 2,
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(10px)',
   },
   secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  features: {
+  featuresGrid: {
+    flexDirection: 'row',
     gap: 20,
   },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    padding: 20,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+  featureCard: {
+    flex: 1,
+    padding: 24,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    minHeight: 160,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backdropFilter: 'blur(10px)',
   },
   featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F1F5F9',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    marginBottom: 16,
   },
   featureIconText: {
-    fontSize: 24,
+    fontSize: 28,
   },
-  featureContent: {
-    flex: 1,
+  featureTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
   featureDescription: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginTop: 4,
-    lineHeight: 20,
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    opacity: 0.8,
   },
 });

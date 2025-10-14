@@ -4,10 +4,15 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Tex
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { listUpcomingTournaments, searchTournaments, type TournamentSummary } from '@/lib/api/tabroom';
 
 export default function TournamentsScreen() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const cardBackgroundColor = useThemeColor({}, 'card');
+  const borderColor = useThemeColor({}, 'border');
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -46,6 +51,10 @@ export default function TournamentsScreen() {
     load(true);
   }, [load]);
 
+  const textColor = useThemeColor({}, 'text');
+  const textSecondaryColor = useThemeColor({}, 'textSecondary');
+  const primaryColor = useThemeColor({}, 'primary');
+
   const renderItem = useCallback(({ item }: { item: TournamentSummary }) => {
     return (
       <Pressable 
@@ -53,66 +62,89 @@ export default function TournamentsScreen() {
         style={styles.cardContainer}
         android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
       >
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: cardBackgroundColor, borderColor: borderColor }]}>
           <View style={styles.cardHeader}>
-            <ThemedText type="subtitle" style={styles.tournamentName}>
+            <ThemedText type="subtitle" style={[styles.tournamentName, { color: textColor }]}>
               {item.name}
             </ThemedText>
-            <View style={styles.statusBadge}>
-              <ThemedText style={styles.statusText}>Active</ThemedText>
+            <View style={[styles.statusBadge, { backgroundColor: primaryColor + '20' }]}>
+              <ThemedText style={[styles.statusText, { color: primaryColor }]}>Upcoming</ThemedText>
             </View>
           </View>
           
           {item.location && (
             <View style={styles.infoRow}>
               <ThemedText style={styles.infoIcon}>📍</ThemedText>
-              <ThemedText style={styles.infoText}>{item.location}</ThemedText>
+              <ThemedText style={[styles.infoText, { color: textSecondaryColor }]}>{item.location}</ThemedText>
             </View>
           )}
           
           <View style={styles.infoRow}>
             <ThemedText style={styles.infoIcon}>📅</ThemedText>
-            <ThemedText style={styles.infoText}>
+            <ThemedText style={[styles.infoText, { color: textSecondaryColor }]}>
               {[item.startDate, item.endDate].filter(Boolean).join(' — ')}
             </ThemedText>
           </View>
           
+          <View style={styles.infoRow}>
+            <ThemedText style={styles.infoIcon}>🌐</ThemedText>
+            <ThemedText style={[styles.infoText, { color: textSecondaryColor }]}>Online Tournament</ThemedText>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <ThemedText style={styles.infoIcon}>📝</ThemedText>
+            <ThemedText style={[styles.infoText, { color: textSecondaryColor }]}>Registration: Closed</ThemedText>
+          </View>
+          
           <View style={styles.cardFooter}>
-            <ThemedText style={styles.viewDetails}>View Details →</ThemedText>
+            <ThemedText style={[styles.viewDetails, { color: primaryColor }]}>View Details →</ThemedText>
           </View>
         </View>
       </Pressable>
     );
-  }, [router]);
+  }, [router, cardBackgroundColor, borderColor, textColor, textSecondaryColor, primaryColor]);
 
   const keyExtractor = useCallback((item: TournamentSummary) => item.id, []);
 
   const header = useMemo(() => (
     <View style={styles.header}>
+      <View style={styles.titleSection}>
+        <ThemedText type="title" style={[styles.title, { color: textColor }]}>
+          Browse Tournaments
+        </ThemedText>
+        <ThemedText style={[styles.subtitle, { color: textSecondaryColor }]}>
+          Discover upcoming debate tournaments
+        </ThemedText>
+      </View>
+      
       <View style={styles.searchContainer}>
         <TextInput
           placeholder="Search tournaments..."
-          placeholderTextColor="rgba(0,0,0,0.5)"
+          placeholderTextColor={textSecondaryColor}
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={() => load()}
-          style={styles.searchInput}
+          style={[styles.searchInput, { 
+            backgroundColor: cardBackgroundColor, 
+            borderColor: borderColor, 
+            color: textColor 
+          }]}
           returnKeyType="search"
         />
-        <Pressable onPress={() => load()} style={styles.searchButton}>
+        <Pressable onPress={() => load()} style={[styles.searchButton, { backgroundColor: primaryColor }]}>
           <ThemedText style={styles.searchButtonText}>Search</ThemedText>
         </Pressable>
       </View>
       
       {query.trim().length > 0 && (
         <View style={styles.resultsInfo}>
-          <ThemedText style={styles.resultsText}>
+          <ThemedText style={[styles.resultsText, { color: textSecondaryColor }]}>
             {data.length} tournament{data.length !== 1 ? 's' : ''} found
           </ThemedText>
         </View>
       )}
     </View>
-  ), [query, load, data.length]);
+  ), [query, load, data.length, textColor, textSecondaryColor, primaryColor, cardBackgroundColor, borderColor]);
 
   const emptyState = useMemo(() => (
     <View style={styles.emptyState}>
@@ -174,46 +206,63 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    padding: 24,
+    paddingBottom: 16,
+  },
+  titleSection: {
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    opacity: 0.8,
   },
   searchContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
     alignItems: 'center',
   },
   searchInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderWidth: 2,
   },
   searchButton: {
-    borderRadius: 12,
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   searchButtonText: {
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 16,
+    letterSpacing: 0.5,
   },
   resultsInfo: {
-    marginTop: 12,
+    marginTop: 16,
     alignItems: 'center',
   },
   resultsText: {
-    fontSize: 14,
-    opacity: 0.7,
+    fontSize: 15,
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
@@ -256,73 +305,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   list: {
-    padding: 16,
+    padding: 24,
     paddingBottom: 32,
   },
   cardContainer: {
-    marginBottom: 16,
-    borderRadius: 16,
-    elevation: 2,
+    marginBottom: 20,
+    borderRadius: 20,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
   card: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 2,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   tournamentName: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    lineHeight: 24,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 28,
+    letterSpacing: -0.3,
   },
   statusBadge: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginLeft: 16,
   },
   statusText: {
-    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   infoIcon: {
-    fontSize: 16,
-    marginRight: 8,
-    width: 20,
+    fontSize: 18,
+    marginRight: 12,
+    width: 24,
   },
   infoText: {
     flex: 1,
-    fontSize: 14,
-    opacity: 0.8,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '500',
   },
   cardFooter: {
-    marginTop: 16,
+    marginTop: 20,
     alignItems: 'flex-end',
   },
   viewDetails: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3B82F6',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   emptyState: {
     alignItems: 'center',
